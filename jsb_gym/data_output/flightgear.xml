@@ -1,0 +1,10 @@
+<output>
+  <net>
+    <mode>socket</mode>
+    <rate>60</rate>
+    <protocol>fdm</protocol>
+    <unit>RADIANS</unit>
+    <host>localhost</host>
+    <port>5501</port>
+  </net>
+</output>
