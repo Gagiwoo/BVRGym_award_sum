@@ -67,6 +67,8 @@ class Evasive(object):
             self.f16.state_block[i] = np.empty((1,self.conf.states['obs_space']))
  
         self.action_space = np.empty((1,self.conf.states['act_space']))
+        self.trajectory_log = None # 궤적 로그를 담을 변수
+
 
     def get_init_state_F16(self, rand_state = False):
         if rand_state:
@@ -396,7 +398,7 @@ class Evasive(object):
 
             if self.aim_block[key].is_target_hit():
                 self.f16_alive = False
-                self.reward_f16_dead = 1
+#                self.reward_f16_dead = 1
                 print('f16 Dead')
                 return True
                           
@@ -408,21 +410,22 @@ class Evasive(object):
                 return True
 
         if self.f16.get_altitude() < 1e3:
-                self.reward_f16_hit_ground = 1
+#                self.reward_f16_hit_ground = 1
                 print('F16 hit ground')
                 return True 
 
-        
 
         lost = [self.aim_block[key].is_traget_lost() for key in self.aim_block_names]
         if all(lost):
             print('All missiles lost')
-            self.reward_all_lost = 1
+#            self.reward_all_lost = 1
             return True
 
         if self.f16.get_sim_time_sec() > self.conf.general['sim_time_max']:
             print('Max time', self.f16.get_sim_time_sec())
-            self.reward_max_time = 1
+#            self.reward_max_time = 1
+            if np.isnan(self.evasion_time): # 아직 기록되지 않았을 때만(최초 성공 시점) 기록
+                self.evasion_time = self.f16.get_sim_time_sec()
             return True
         else:
             return False
@@ -433,16 +436,38 @@ class Evasive(object):
             # integrate f16 
             self.f16.step_BVR(action, action_type=action_type)
 
+            f16_pos = (self.f16.get_lat_gc_deg(), self.f16.get_long_gc_deg(), self.f16.get_altitude())
+            self.trajectory_log['f16'].append(f16_pos)
+
+            for key, aim in self.aim_block.items():
+                if not aim.is_traget_lost():
+                    aim_pos = (aim.get_lat_gc_deg(), aim.get_long_gc_deg(), aim.get_altitude())
+                    self.trajectory_log['aims'][key].append(aim_pos)
+
             for key in self.aim_block:
                 # if not lost, integrate dynamics
                 if not self.aim_block[key].is_traget_lost():
                     self.aim_block[key].step_evasive()
 
+        # 최소 접근 거리(CPA) 업데이트
+        for key in self.aim_block:
+            # 거리를 계산하는 기존 함수를 활용합니다.
+            current_dist = self.get_distance_to_firing_position(self.f16, self.aim_block[key])
+            if current_dist < self.min_cpa:
+                self.min_cpa = current_dist
+        
         done = self.is_done()
         reward = self.get_reward(done)
         self.update_states()
 
-        return self.f16.state_block, reward, done, None
+        info = {}
+        if done:
+            info = {
+                'survival': 1.0 if self.f16_alive else 0.0,
+                'min_cpa': self.min_cpa,
+                'evasion_time': self.evasion_time  # 성공 시 시간, 실패 시 nan
+            }
+        return self.f16.state_block, reward, done, info
                
     def reset_count(self):
         self.count = 0
@@ -452,11 +477,13 @@ class Evasive(object):
 
     def reset_reward(self):
         self.dist_min = None
-        self.reward_f16_dead = 0
-        self.reward_aim_hit_ground = 0
-        self.reward_f16_hit_ground = 0
-        self.reward_all_lost = 0
-        self.reward_max_time = 0
+        #self.reward_f16_dead = 0
+        #self.reward_aim_hit_ground = 0
+        #self.reward_f16_hit_ground = 0
+        #self.reward_all_lost = 0
+        #self.reward_max_time = 0
+        self.min_cpa = float('inf')  # 이번 에피소드의 최소 접근 거리 (무한대로 초기화)
+        self.evasion_time = float('nan') # 회피 성공 시 걸린 시간 (초기값은 Not a Number)
 
     def reset(self, rand_state_f16 = False, rand_state_aim = False):
         
@@ -470,6 +497,8 @@ class Evasive(object):
         #print(lat0, long0, alt0, vel0, heading0)
         # deg , deg , meters, m/s, deg 
         self.f16.reset(lat0, long0, alt0, vel0, heading0)
+        self.trajectory_log = {'f16': [], 'aims': {key: [] for key in self.aim_block}}
+
   
         for key in self.aim_block:
             # hard reset 
@@ -487,23 +516,3 @@ class Evasive(object):
         self.update_states()    
         return self.f16.state_block
     
-    def get_tb_obs_evasive(env):
-        tb_obs = {}
-
-        tb_obs['survival'] = 1.0 if env.f16_alive else 0.0
-        tb_obs['sim_time'] = env.f16.get_sim_time_sec()
-
-        evade_cnt = sum([1 for k in env.aim_block if env.aim_block[k].target_lost])
-        total_msl = len(env.aim_block)
-        tb_obs['evade_rate'] = evade_cnt / total_msl if total_msl > 0 else 0.0
-
-        return tb_obs
-    
-def get_tb_obs_evasive(env):
-    return {
-        'F16_dead': env.reward_f16_dead,
-        'F16_ground': env.reward_f16_hit_ground,
-        'AIM_ground': env.reward_aim_hit_ground,
-        'Lost_all': env.reward_all_lost,
-        'Max_time': env.reward_max_time
-    }

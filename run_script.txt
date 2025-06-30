@@ -6,13 +6,13 @@ python mainBVRGym.py
 python mainBVRGym_MultiCore.py --track M1 --cpu_cores 12 --Eps 10000 --eps 3 --method baseline
 
 # 기법 2: Reward Shaping
-python mainBVRGym_MultiCore.py --track M1 --cpu_cores 4 --Eps 1000 --eps 3 --method shaping --shaping_w 0.05
+python mainBVRGym_MultiCore.py --track M1 --cpu_cores 12 --Eps 10000 --eps 3 --method shaping --shaping_w 0.05
 
 # 기법 3: Entropy 증가
-python mainBVRGym_MultiCore.py --track M1 --cpu_cores 4 --Eps 1000 --eps 3 --method entropy
+python mainBVRGym_MultiCore.py --track M1 --cpu_cores 12 --Eps 10000 --eps 3 --method entropy
 
-
-python mainBVRGym_MultiCore.py --track M1 --cpu_cores 4 --Eps 1000 --eps 3 --method proposed
+# 기법 4: 제안기법
+python mainBVRGym_MultiCore.py --track M1 --cpu_cores 12 --Eps 10000 --eps 3 --method proposed
 
 
 tensorboard --logdir runs

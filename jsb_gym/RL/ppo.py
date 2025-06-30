@@ -135,8 +135,8 @@ class PPO:
     def get_entropy(self):
         return getattr(self, 'last_entropy', 0.0)
 
-    def update(self, memory, to_tensor=False, use_gpu=True):
-        self.set_device(use_gpu, set_policy=True)
+    def update(self, memory, to_tensor=False):
+#        self.set_device(use_gpu, set_policy=True)
 
         rewards = []
         discounted_reward = 0
